@@ -1,1 +1,231 @@
-"Hello World" 
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ria's Music Player</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ec4899">
+  <link rel="icon" href="https://via.placeholder.com/192x192.png?text=🎵" type="image/png">
+  <style>
+    body {
+      background-color: #fce7f3;
+      background-image: url('https://static.wikia.nocookie.net/sanrio/images/5/59/Cinnamoroll2Bbackground.webp/revision/latest?cb=20231016042440');
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      background-attachment: fixed;
+    }
+    body::before {
+      content: '';
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: inherit;
+      opacity: 0.6;
+      z-index: -1;
+    }
+    .slider {
+      -webkit-appearance: none;
+      width: 100%;
+      height: 8px;
+      background: #f9a8d4;
+      outline: none;
+      opacity: 0.7;
+      transition: opacity .2s;
+      border-radius: 5px;
+    }
+    .slider:hover {
+      opacity: 1;
+    }
+    .slider::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 16px;
+      height: 16px;
+      background: #ec4899;
+      cursor: pointer;
+      border-radius: 50%;
+    }
+    .slider::-moz-range-thumb {
+      width: 16px;
+      height: 16px;
+      background: #ec4899;
+      cursor: pointer;
+      border-radius: 50%;
+    }
+    .player-container {
+      background-color: rgba(255, 255, 255, 0.9);
+      border-radius: 0.5rem;
+    }
+  </style>
+</head>
+<body class="flex items-center justify-center min-h-screen">
+  <div class="player-container p-6 rounded-lg shadow-lg w-full max-w-md">
+    <h1 class="text-2xl font-bold text-pink-600 text-center mb-4">Ria's Music Player</h1>
+    <audio id="audioPlayer" class="hidden"></audio>
+    <div class="flex justify-between items-center mb-4">
+      <button id="playPauseBtn" class="bg-pink-500 text-white px-4 py-2 rounded hover:bg-pink-600">Play</button>
+      <button id="skipForwardBtn" class="bg-pink-500 text-white px-4 py-2 rounded hover:bg-pink-600">Skip +10s</button>
+    </div>
+    <div class="mb-4">
+      <input type="range" id="timebar" value="0" min="0" max="100" step="0.1" class="slider" />
+      <div class="flex justify-between text-sm text-pink-700">
+        <span id="currentTime">0:00</span>
+        <span id="duration">0:00</span>
+      </div>
+    </div>
+    <div id="playlist" class="max-h-40 overflow-y-auto text-pink-700">
+      <!-- Playlist items will be added here -->
+    </div>
+  </div>
+
+  <script>
+    const audioPlayer = document.getElementById('audioPlayer');
+    const playPauseBtn = document.getElementById('playPauseBtn');
+    const skipForwardBtn = document.getElementById('skipForwardBtn');
+    const timebar = document.getElementById('timebar');
+    const currentTimeDisplay = document.getElementById('currentTime');
+    const durationDisplay = document.getElementById('duration');
+    const playlist = document.getElementById('playlist');
+
+    // Predefined list of songs in the songs/ folder
+    const songs = [
+      { name: 'Under Your Spell <3', path: 'songs/Under Your Spell.mp3' },
+      { name: 'Blue Bunny', path: 'songs/Blue Bunny.mp3' },
+      { name: 'Bimbo Doll', path: 'songs/Bimbo Doll.mp3' },
+      { name: 'I LOVE YOU SO', path: 'songs/I LOVE YOU SO.mp3' }
+    ];
+
+    let currentTrackIndex = 0;
+
+    // Format time in mm:ss
+    function formatTime(seconds) {
+      const min = Math.floor(seconds / 60);
+      const sec = Math.floor(seconds % 60);
+      return `${min}:${sec < 10 ? '0' : ''}${sec}`;
+    }
+
+    // Update timebar and time displays
+    function updateTimebar() {
+      const currentTime = audioPlayer.currentTime;
+      const duration = audioPlayer.duration || 0;
+      timebar.value = duration ? (currentTime / duration) * 100 : 0;
+      currentTimeDisplay.textContent = formatTime(currentTime);
+      durationDisplay.textContent = formatTime(duration);
+    }
+
+    // Load and play a track
+    function loadTrack(index) {
+      if (index < 0 || index >= songs.length) return;
+      currentTrackIndex = index;
+      audioPlayer.src = songs[index].path;
+      audioPlayer.load();
+      audioPlayer.play().catch(e => console.error('Playback failed:', e));
+      playPauseBtn.textContent = 'Pause';
+      updatePlaylistUI();
+    }
+
+    // Update playlist UI
+    function updatePlaylistUI() {
+      playlist.innerHTML = '';
+      songs.forEach((song, i) => {
+        const div = document.createElement('div');
+        div.className = `p-2 cursor-pointer hover:bg-pink-200 rounded ${i === currentTrackIndex ? 'bg-pink-300' : ''}`;
+        div.textContent = song.name;
+        div.onclick = () => loadTrack(i);
+        playlist.appendChild(div);
+      });
+    }
+
+    // Play/Pause button
+    playPauseBtn.addEventListener('click', () => {
+      if (audioPlayer.paused) {
+        audioPlayer.play().catch(e => console.error('Playback failed:', e));
+        playPauseBtn.textContent = 'Pause';
+      } else {
+        audioPlayer.pause();
+        playPauseBtn.textContent = 'Play';
+      }
+    });
+
+    // Skip forward 10 seconds
+    skipForwardBtn.addEventListener('click', () => {
+      audioPlayer.currentTime = Math.min(audioPlayer.currentTime + 10, audioPlayer.duration);
+    });
+
+    // Timebar seeking
+    timebar.addEventListener('input', () => {
+      const duration = audioPlayer.duration || 0;
+      audioPlayer.currentTime = (timebar.value / 100) * duration;
+    });
+
+    // Update timebar as audio plays
+    audioPlayer.addEventListener('timeupdate', updateTimebar);
+
+    // Set duration when metadata is loaded
+    audioPlayer.addEventListener('loadedmetadata', () => {
+      timebar.max = 100;
+      updateTimebar();
+    });
+
+    // Play next track when current ends
+    audioPlayer.addEventListener('ended', () => {
+      currentTrackIndex = (currentTrackIndex + 1) % songs.length;
+      loadTrack(currentTrackIndex);
+    });
+
+    // Initialize the player with the first track
+    if (songs.length > 0) {
+      loadTrack(0);
+    }
+
+    // Register service worker for offline support
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('sw.js').catch(e => console.error('Service Worker registration failed:', e));
+    }
+  </script>
+</body>
+</html>
