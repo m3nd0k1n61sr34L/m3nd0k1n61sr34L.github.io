@@ -1,0 +1,21 @@
+{
+  "name": "Ria`s Music",
+  "short_name": "Ria`s Player",
+  "title": "Ria`s Music Player",
+  "start_url": "index.html",
+  "display": "standalone",
+  "background_color": "#fce7f3",
+  "theme_color": "#ec4899",
+  "icons": [
+    {
+      "src": "https://via.placeholder.com/192x192.png?text=🎵",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://via.placeholder.com/512x512.png?text=🎵",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
