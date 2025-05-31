@@ -1,7 +1,7 @@
 {
-  "name": "Ria`s Music",
-  "short_name": "Ria`s Player",
-  "title": "Ria`s Music Player",
+  "name": "Music",
+  "short_name": "Player",
+  "title": "Music Player",
   "start_url": "index.html",
   "display": "standalone",
   "background_color": "#fce7f3",
